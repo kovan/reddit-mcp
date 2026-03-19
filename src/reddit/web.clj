@@ -81,6 +81,64 @@
      :body body
      :data (try (json/read-str body :key-fn keyword) (catch Exception _ nil))}))
 
+(defn- api-get
+  "Authenticated GET request to old.reddit.com."
+  [url]
+  (init-cookies!)
+  (let [pb (ProcessBuilder. ["curl" "-sSL"
+                              "-b" @cookie-jar "-c" @cookie-jar
+                              "-H" (str "User-Agent: " ua)
+                              url])
+        proc (.start pb)
+        out (str/trim (slurp (.getInputStream proc)))
+        _ (.waitFor proc)]
+    (when (seq out)
+      (json/read-str out :key-fn keyword))))
+
+(defn- relative-time [epoch-secs]
+  (when epoch-secs
+    (let [now (quot (System/currentTimeMillis) 1000)
+          diff (- now (long epoch-secs))]
+      (cond
+        (< diff 60) "just now"
+        (< diff 3600) (str (quot diff 60) "m ago")
+        (< diff 86400) (str (quot diff 3600) "h ago")
+        :else (str (quot diff 86400) "d ago")))))
+
+(defn- format-inbox-item
+  [{:keys [kind data]}]
+  (let [{:keys [author subject body created_utc context
+                subreddit link_title new]} data
+        kind-label (case kind "t1" "comment reply" "t4" "message" kind)
+        time-str (relative-time created_utc)
+        link (when (seq context)
+               (str "https://old.reddit.com" context))]
+    (str (when new "**[NEW]** ")
+         "**" (or author "[deleted]") "** (" kind-label ")"
+         (when time-str (str " - " time-str)) "\n"
+         (when (and (seq subreddit) (seq link_title))
+           (str "r/" subreddit " | " link_title "\n"))
+         (when (and (= kind "t4") (seq subject))
+           (str "Subject: " subject "\n"))
+         (when (seq body) (str body "\n"))
+         (when link (str link "\n")))))
+
+(defn inbox
+  "Fetch the authenticated user's inbox. Returns formatted markdown."
+  [n]
+  (let [limit (min (max n 1) 100)
+        url (str "https://old.reddit.com/message/inbox/.json?limit=" limit "&raw_json=1")
+        response (api-get url)
+        items (get-in response [:data :children])]
+    (if (seq items)
+      (str "# Inbox (" (count items) " items)\n\n"
+           (str/join "\n---\n\n"
+             (map-indexed
+               (fn [i item]
+                 (str (inc i) ". " (format-inbox-item item)))
+               items)))
+      "# Inbox\n\nNo messages.")))
+
 (defn reply-comment
   "Reply to a comment or post on Reddit. thing-id is the fullname (t1_ or t3_ prefixed)."
   [thing-id message]

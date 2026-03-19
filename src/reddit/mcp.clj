@@ -74,7 +74,12 @@
                                       :description "Post body text (for self posts)"}
                                :url {:type "string"
                                      :description "URL to submit (for link posts)"}}
-                  :required ["subreddit" "title" "kind"]}}])
+                  :required ["subreddit" "title" "kind"]}}
+   {:name "inbox"
+    :description "Check your Reddit inbox for replies and messages."
+    :inputSchema {:type "object"
+                  :properties {:n {:type "number"
+                                   :description "Number of messages to return (default 25, max 100)"}}}}])
 
 (defn- respond [id result]
   {:jsonrpc "2.0" :id id :result result})
@@ -144,6 +149,9 @@
                              (:kind arguments)
                              :text (:text arguments)
                              :url (:url arguments))
+
+            "inbox"
+            (web/inbox (clamp-n arguments))
 
             (throw (ex-info (str "Unknown tool: " name) {})))]
       (respond id (tool-result result)))
