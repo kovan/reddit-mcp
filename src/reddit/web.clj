@@ -148,12 +148,26 @@
       (throw (ex-info (str "Reddit API error: " (pr-str errors)) {:errors errors}))
       (str "Reply posted successfully to " thing-id "."))))
 
+(defn list-flairs
+  "List available post flairs for a subreddit."
+  [subreddit]
+  (let [url (str "https://old.reddit.com/r/" subreddit "/api/link_flair_v2.json")
+        flairs (api-get url)]
+    (if (seq flairs)
+      (str "# Flairs for r/" subreddit " (" (count flairs) ")\n\n"
+           (clojure.string/join "\n"
+             (map (fn [{:keys [id text]}]
+                    (str "- " text " [" id "]"))
+                  flairs)))
+      (str "# Flairs for r/" subreddit "\n\nNo flairs found (or sub doesn't require them)."))))
+
 (defn submit-post
   "Submit a new post to a subreddit. kind is 'self' or 'link'."
-  [subreddit title kind & {:keys [text url]}]
+  [subreddit title kind & {:keys [text url flair-id]}]
   (let [params (cond-> {:sr subreddit :title title :kind kind}
                  text (assoc :text text)
-                 url (assoc :url url))
+                 url (assoc :url url)
+                 flair-id (assoc :flair_id flair-id))
         resp (api-post "submit" params)
         errors (get-in resp [:data :json :errors])]
     (if (and (seq errors) (not= errors []))

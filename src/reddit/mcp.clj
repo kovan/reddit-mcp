@@ -73,8 +73,16 @@
                                :text {:type "string"
                                       :description "Post body text (for self posts)"}
                                :url {:type "string"
-                                     :description "URL to submit (for link posts)"}}
+                                     :description "URL to submit (for link posts)"}
+                               :flair_id {:type "string"
+                                          :description "Flair ID (use list_flairs to get available IDs)"}}
                   :required ["subreddit" "title" "kind"]}}
+   {:name "list_flairs"
+    :description "List available post flairs for a subreddit. Returns flair names and IDs."
+    :inputSchema {:type "object"
+                  :properties {:subreddit {:type "string"
+                                           :description "Subreddit name without r/ prefix"}}
+                  :required ["subreddit"]}}
    {:name "inbox"
     :description "Check your Reddit inbox for replies and messages."
     :inputSchema {:type "object"
@@ -148,7 +156,11 @@
             (web/submit-post (:subreddit arguments) (:title arguments)
                              (:kind arguments)
                              :text (:text arguments)
-                             :url (:url arguments))
+                             :url (:url arguments)
+                             :flair-id (:flair_id arguments))
+
+            "list_flairs"
+            (web/list-flairs (:subreddit arguments))
 
             "inbox"
             (web/inbox (clamp-n arguments))
